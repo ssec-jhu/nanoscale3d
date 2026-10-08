@@ -5,12 +5,12 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
-file_path = "SimpleCylinder.stl"
-stream_filename = "SimpleCylinder"
+file_path = "examples/DiamondCubic-5x5x3.stl"
+stream_filename = "DiamondCubic-5x5x3"
 GR0 = .200 # in um/s, base growth rate
 k = 1. #in 1/nm?, thermal conductivity 
 sigma = 4 # in nm, dwell size
-scale_factor = 1
+scale_factor = 400
 
 
 
@@ -30,7 +30,7 @@ settings["dd_model"] = {"single_pixel_width": 50}
 
 # Load, scale, and orient structure correctly for slicing. Slices are parallel to the XY plane.
 struct = f3ast.Structure.from_file(file_path, **settings["structure"])
-rotation_axis, rotation_angle = (1, 0, 0), 90
+rotation_axis, rotation_angle = (1, 0, 0), 0
 tilt_string = "90t100"
 struct.rotate(rotation_axis, rotation_angle)
 
