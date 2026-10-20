@@ -4,6 +4,11 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
+from nanoscale3d.branch_connections import install_fast_branch_connections
+
+# Same connectivity results as f3ast, without the pairwise KD-tree search.
+install_fast_branch_connections()
+
 
 file_path = "examples/DiamondCubic-5x5x3.stl"
 stream_filename = "DiamondCubic-5x5x3"
