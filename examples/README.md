@@ -1,4 +1,6 @@
-This directory contains workflows for processing STL files through the program. `building.ipynb` and `building.py` should both work. `building_timing.py` is the same DiamondCubic export path with per-stage wall-clock timings. Both call `install_fast_branch_connections()` so they use the faster grid-cell connectivity path from `nanoscale3d.branch_connections`.
+This directory contains workflows for processing STL files through the program. `building.ipynb` and `building.py` should both work. `building_timing.py` is the same DiamondCubic export path with per-stage wall-clock timings.
+
+By default those scripts turn on **both** speedups (branch connections + beam points) via `install_fast_branch_connections()`. To compare against original `f3ast`, set `USE_FAST = False` in the script or run with `NANOSCALE3D_FAST=0`.
 
 `validate_speedup.py` compares the original `f3ast` path against that replacement on the example STLs (runtime, peak RSS, and byte-identical `.str` output). Set `FAST_VALIDATE=1` to skip the largest DiamondCubic case.
 

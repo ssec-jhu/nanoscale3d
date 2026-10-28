@@ -14,6 +14,8 @@ indices match ``f3ast.branches.get_branch_connections``.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import numpy as np
 from numba import njit
 
@@ -242,19 +244,82 @@ def _path_length(points):
     return np.sum(la.norm(points[1:] - points[:-1], axis=1))
 
 
-def install_fast_branch_connections():
-    """Use the faster slicing steps inside ``f3ast.Structure.generate_slices``.
+# Snapshot of the f3ast call sites before any monkey-patch. Captured once on
+# the first install so uninstall always restores the true originals.
+_ORIGINAL_F3AST: dict | None = None
 
-    Replaces branch connectivity and equidistant resampling. ``Structure``
-    holds its own references, so both the defining module and ``structure``
-    are updated.
-    """
+
+def _f3ast_modules():
     import f3ast.branches as branches
     import f3ast.slicing as slicing
     import f3ast.structure as structure
 
+    return branches, slicing, structure
+
+
+def _snapshot_original_f3ast():
+    global _ORIGINAL_F3AST
+    if _ORIGINAL_F3AST is not None:
+        return
+    branches, slicing, structure = _f3ast_modules()
+    _ORIGINAL_F3AST = {
+        "branches.get_branch_connections": branches.get_branch_connections,
+        "structure.get_branch_connections": structure.get_branch_connections,
+        "slicing.split_eqd": slicing.split_eqd,
+        "structure.split_eqd": structure.split_eqd,
+    }
+
+
+def install_fast_branch_connections():
+    """Turn on both speedups inside ``f3ast.Structure.generate_slices``.
+
+    Replaces branch connectivity and equidistant beam-point placement. Call
+    ``uninstall_fast_branch_connections`` to put the originals back.
+    """
+    _snapshot_original_f3ast()
+    branches, slicing, structure = _f3ast_modules()
     branches.get_branch_connections = get_branch_connections
     structure.get_branch_connections = get_branch_connections
     slicing.split_eqd = split_eqd
     structure.split_eqd = split_eqd
     return get_branch_connections
+
+
+def uninstall_fast_branch_connections():
+    """Restore f3ast's original branch-connection and beam-point functions."""
+    _snapshot_original_f3ast()
+    assert _ORIGINAL_F3AST is not None
+    branches, slicing, structure = _f3ast_modules()
+    branches.get_branch_connections = _ORIGINAL_F3AST["branches.get_branch_connections"]
+    structure.get_branch_connections = _ORIGINAL_F3AST["structure.get_branch_connections"]
+    slicing.split_eqd = _ORIGINAL_F3AST["slicing.split_eqd"]
+    structure.split_eqd = _ORIGINAL_F3AST["structure.split_eqd"]
+
+
+@contextmanager
+def fast_branch_connections(enabled: bool = True):
+    """Temporarily use the fast path (both steps) or the original f3ast path.
+
+    Args:
+        enabled: If True, install both speedups for the block. If False, use
+            the original f3ast functions for the block.
+    """
+    _snapshot_original_f3ast()
+    branches, slicing, structure = _f3ast_modules()
+    previous = {
+        "branches.get_branch_connections": branches.get_branch_connections,
+        "structure.get_branch_connections": structure.get_branch_connections,
+        "slicing.split_eqd": slicing.split_eqd,
+        "structure.split_eqd": structure.split_eqd,
+    }
+    try:
+        if enabled:
+            install_fast_branch_connections()
+        else:
+            uninstall_fast_branch_connections()
+        yield
+    finally:
+        branches.get_branch_connections = previous["branches.get_branch_connections"]
+        structure.get_branch_connections = previous["structure.get_branch_connections"]
+        slicing.split_eqd = previous["slicing.split_eqd"]
+        structure.split_eqd = previous["structure.split_eqd"]

@@ -180,10 +180,19 @@ def test_split_eqd_matches_f3ast():
             assert actual_length == expected_length
 
 
-def test_install_replaces_f3ast_lookup():
+def test_install_and_uninstall_toggle_both_speedups():
     f3ast = pytest.importorskip("f3ast")
-    from nanoscale3d.branch_connections import install_fast_branch_connections
-    from nanoscale3d.branch_connections import split_eqd as fast_split_eqd
+    from nanoscale3d.branch_connections import (
+        fast_branch_connections,
+        install_fast_branch_connections,
+        uninstall_fast_branch_connections,
+    )
+    from nanoscale3d.branch_connections import (
+        get_branch_connections as fast_connections,
+    )
+    from nanoscale3d.branch_connections import (
+        split_eqd as fast_split_eqd,
+    )
 
     original_branches = f3ast.branches.get_branch_connections
     original_structure = f3ast.structure.get_branch_connections
@@ -195,7 +204,27 @@ def test_install_replaces_f3ast_lookup():
         assert f3ast.structure.get_branch_connections is installed
         assert f3ast.slicing.split_eqd is fast_split_eqd
         assert f3ast.structure.split_eqd is fast_split_eqd
+
+        uninstall_fast_branch_connections()
+        assert f3ast.branches.get_branch_connections is original_branches
+        assert f3ast.structure.get_branch_connections is original_structure
+        assert f3ast.slicing.split_eqd is original_slicing
+        assert f3ast.structure.split_eqd is original_structure_split
+
+        with fast_branch_connections(enabled=True):
+            assert f3ast.structure.get_branch_connections is fast_connections
+            assert f3ast.structure.split_eqd is fast_split_eqd
+        assert f3ast.structure.get_branch_connections is original_structure
+        assert f3ast.structure.split_eqd is original_structure_split
+
+        install_fast_branch_connections()
+        with fast_branch_connections(enabled=False):
+            assert f3ast.structure.get_branch_connections is original_structure
+            assert f3ast.structure.split_eqd is original_structure_split
+        assert f3ast.structure.get_branch_connections is fast_connections
+        assert f3ast.structure.split_eqd is fast_split_eqd
     finally:
+        uninstall_fast_branch_connections()
         f3ast.branches.get_branch_connections = original_branches
         f3ast.structure.get_branch_connections = original_structure
         f3ast.slicing.split_eqd = original_slicing

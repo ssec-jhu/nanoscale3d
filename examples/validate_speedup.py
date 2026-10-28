@@ -13,7 +13,6 @@ import hashlib
 import os
 import resource
 import tempfile
-from contextlib import contextmanager
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -25,7 +24,10 @@ import numpy as np
 matplotlib.use("Agg")
 numba.config.THREADING_LAYER = "workqueue"
 
-from nanoscale3d.branch_connections import install_fast_branch_connections
+from nanoscale3d.branch_connections import (
+    fast_branch_connections,
+    install_fast_branch_connections,
+)
 
 # Pitch / model settings match examples/building.py.
 STRUCTURE = {"pitch": 3, "fill": False}
@@ -65,28 +67,6 @@ def peak_rss_mb() -> float:
     if os.uname().sysname == "Darwin":
         return usage / (1024 * 1024)
     return usage / 1024
-
-
-@contextmanager
-def restored_f3ast():
-    """Snapshot and restore the f3ast call sites this package monkey-patches."""
-    import f3ast.branches as branches
-    import f3ast.slicing as slicing
-    import f3ast.structure as structure
-
-    originals = {
-        "branches.get_branch_connections": branches.get_branch_connections,
-        "structure.get_branch_connections": structure.get_branch_connections,
-        "slicing.split_eqd": slicing.split_eqd,
-        "structure.split_eqd": structure.split_eqd,
-    }
-    try:
-        yield
-    finally:
-        branches.get_branch_connections = originals["branches.get_branch_connections"]
-        structure.get_branch_connections = originals["structure.get_branch_connections"]
-        slicing.split_eqd = originals["slicing.split_eqd"]
-        structure.split_eqd = originals["structure.split_eqd"]
 
 
 def file_sha256(path: str) -> str:
@@ -155,15 +135,15 @@ def compare_case(case: Case) -> None:
     print(f"\n=== {case.label} ===")
     print(f"file={case.file_path}  scale={case.scale_factor}")
 
-    with restored_f3ast():
+    with fast_branch_connections(enabled=False):
         print("running original f3ast …")
         slow = run_pipeline(case.file_path, case.scale_factor)
-        # Drop heavy objects before the fast run so RSS is comparable.
-        del slow["struct"], slow["model"]
+    # Drop heavy objects before the fast run so RSS is comparable.
+    del slow["struct"], slow["model"]
 
-    install_fast_branch_connections()
-    print("running fast path …")
-    fast = run_pipeline(case.file_path, case.scale_factor)
+    with fast_branch_connections(enabled=True):
+        print("running fast path …")
+        fast = run_pipeline(case.file_path, case.scale_factor)
     del fast["struct"], fast["model"]
 
     identical = slow["sha256"] == fast["sha256"]

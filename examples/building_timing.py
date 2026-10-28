@@ -4,6 +4,7 @@ Runs the same DiamondCubic example and prints wall-clock time per stage.
 Requires f3ast (and a Numba threading layer such as workqueue/tbb).
 """
 
+import os
 from time import perf_counter
 
 import f3ast
@@ -11,8 +12,11 @@ import matplotlib
 
 from nanoscale3d.branch_connections import install_fast_branch_connections
 
-# Same connectivity results as f3ast, without the pairwise KD-tree search.
-install_fast_branch_connections()
+# One switch for both speedups (branch connections + beam points).
+# Set False, or NANOSCALE3D_FAST=0, to compare against original f3ast.
+USE_FAST = os.environ.get("NANOSCALE3D_FAST", "1") != "0"
+if USE_FAST:
+    install_fast_branch_connections()
 
 matplotlib.use("Agg")
 
