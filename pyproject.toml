@@ -11,6 +11,9 @@ license = {file = "LICENSE"}
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[all]",
+    "numba>=0.60",
+    "numpy>=2.0",
+    "scipy>=1.14",
 ]
 
 [project.optional-dependencies]

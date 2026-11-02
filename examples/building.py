@@ -1,8 +1,18 @@
+import os
+
 import f3ast
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+
+from nanoscale3d.branch_connections import install_fast_branch_connections
+
+# One switch for both speedups (branch connections + beam points).
+# Set False, or NANOSCALE3D_FAST=0, to compare against original f3ast.
+USE_FAST = os.environ.get("NANOSCALE3D_FAST", "1") != "0"
+if USE_FAST:
+    install_fast_branch_connections()
 
 
 file_path = "examples/DiamondCubic-5x5x3.stl"
