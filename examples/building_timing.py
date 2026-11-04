@@ -12,7 +12,7 @@ import matplotlib
 
 from nanoscale3d.branch_connections import install_fast_branch_connections
 
-# One switch for both speedups (branch connections + beam points).
+# One switch for slicing speedups (cut layers, connections, beam points).
 # Set False, or NANOSCALE3D_FAST=0, to compare against original f3ast.
 USE_FAST = os.environ.get("NANOSCALE3D_FAST", "1") != "0"
 if USE_FAST:

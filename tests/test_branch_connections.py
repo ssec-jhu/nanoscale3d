@@ -180,10 +180,28 @@ def test_split_eqd_matches_f3ast():
             assert actual_length == expected_length
 
 
+def test_get_intersection_lines_matches_f3ast_on_small_mesh():
+    f3ast = pytest.importorskip("f3ast")
+    from nanoscale3d.branch_connections import (
+        get_intersection_lines as fast_get_intersection_lines,
+    )
+
+    struct = f3ast.Structure.from_file("examples/5MinuteDiamond.stl", pitch=3, fill=False)
+    struct.centre()
+    struct.rescale(50)
+    expected_lines, expected_z = f3ast.structure.Structure.get_intersection_lines(struct)
+    actual_lines, actual_z = fast_get_intersection_lines(struct)
+    np.testing.assert_array_equal(actual_z, expected_z)
+    assert len(actual_lines) == len(expected_lines)
+    for actual, expected in zip(actual_lines, expected_lines, strict=True):
+        np.testing.assert_array_equal(actual, expected)
+
+
 def test_install_and_uninstall_toggle_both_speedups():
     f3ast = pytest.importorskip("f3ast")
     from nanoscale3d.branch_connections import (
         fast_branch_connections,
+        get_intersection_lines as fast_cut,
         install_fast_branch_connections,
         uninstall_fast_branch_connections,
     )
@@ -198,34 +216,42 @@ def test_install_and_uninstall_toggle_both_speedups():
     original_structure = f3ast.structure.get_branch_connections
     original_slicing = f3ast.slicing.split_eqd
     original_structure_split = f3ast.structure.split_eqd
+    original_cut = f3ast.structure.Structure.get_intersection_lines
     try:
         installed = install_fast_branch_connections()
         assert f3ast.branches.get_branch_connections is installed
         assert f3ast.structure.get_branch_connections is installed
         assert f3ast.slicing.split_eqd is fast_split_eqd
         assert f3ast.structure.split_eqd is fast_split_eqd
+        assert f3ast.structure.Structure.get_intersection_lines is fast_cut
 
         uninstall_fast_branch_connections()
         assert f3ast.branches.get_branch_connections is original_branches
         assert f3ast.structure.get_branch_connections is original_structure
         assert f3ast.slicing.split_eqd is original_slicing
         assert f3ast.structure.split_eqd is original_structure_split
+        assert f3ast.structure.Structure.get_intersection_lines is original_cut
 
         with fast_branch_connections(enabled=True):
             assert f3ast.structure.get_branch_connections is fast_connections
             assert f3ast.structure.split_eqd is fast_split_eqd
+            assert f3ast.structure.Structure.get_intersection_lines is fast_cut
         assert f3ast.structure.get_branch_connections is original_structure
         assert f3ast.structure.split_eqd is original_structure_split
+        assert f3ast.structure.Structure.get_intersection_lines is original_cut
 
         install_fast_branch_connections()
         with fast_branch_connections(enabled=False):
             assert f3ast.structure.get_branch_connections is original_structure
             assert f3ast.structure.split_eqd is original_structure_split
+            assert f3ast.structure.Structure.get_intersection_lines is original_cut
         assert f3ast.structure.get_branch_connections is fast_connections
         assert f3ast.structure.split_eqd is fast_split_eqd
+        assert f3ast.structure.Structure.get_intersection_lines is fast_cut
     finally:
         uninstall_fast_branch_connections()
         f3ast.branches.get_branch_connections = original_branches
         f3ast.structure.get_branch_connections = original_structure
         f3ast.slicing.split_eqd = original_slicing
         f3ast.structure.split_eqd = original_structure_split
+        f3ast.structure.Structure.get_intersection_lines = original_cut
