@@ -252,9 +252,9 @@ def get_intersection_lines(self):
     nonempty ``z_levels`` match the original method on the validated meshes.
     """
     import trimesh
+    from trimesh import transformations as tft
     from trimesh.geometry import plane_transform
     from trimesh.intersections import mesh_plane
-    from trimesh import transformations as tft
 
     slice_height = self.pitch / 2
     minz = float(self.bounds[0, 2]) + 1e-3
@@ -291,9 +291,7 @@ def get_intersection_lines(self):
         unique_planes = plane_ids[starts]
 
         vertex_dots = np.dot(plane_normal, (self.vertices - plane_origin).T)
-        base_transform = np.linalg.inv(
-            plane_transform(origin=plane_origin, normal=plane_normal)
-        )
+        base_transform = np.linalg.inv(plane_transform(origin=plane_origin, normal=plane_normal))
         translation = np.eye(4)
         cursor = 0
         for height_i, height in enumerate(z_levels):
@@ -382,9 +380,7 @@ def uninstall_fast_branch_connections():
     structure.get_branch_connections = _ORIGINAL_F3AST["structure.get_branch_connections"]
     slicing.split_eqd = _ORIGINAL_F3AST["slicing.split_eqd"]
     structure.split_eqd = _ORIGINAL_F3AST["structure.split_eqd"]
-    structure.Structure.get_intersection_lines = _ORIGINAL_F3AST[
-        "structure.Structure.get_intersection_lines"
-    ]
+    structure.Structure.get_intersection_lines = _ORIGINAL_F3AST["structure.Structure.get_intersection_lines"]
 
 
 @contextmanager
@@ -415,6 +411,4 @@ def fast_branch_connections(enabled: bool = True):
         structure.get_branch_connections = previous["structure.get_branch_connections"]
         slicing.split_eqd = previous["slicing.split_eqd"]
         structure.split_eqd = previous["structure.split_eqd"]
-        structure.Structure.get_intersection_lines = previous[
-            "structure.Structure.get_intersection_lines"
-        ]
+        structure.Structure.get_intersection_lines = previous["structure.Structure.get_intersection_lines"]
