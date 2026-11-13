@@ -1,14 +1,16 @@
 """Fast replacements for the slow steps in ``f3ast.Structure.generate_slices``.
 
-Three monkey-patches live here, all turned on together by
+Four monkey-patches live here, all turned on together by
 ``install_fast_branch_connections``:
 
 1. **Cut layers** — only test planes inside each triangle's Z-range.
-2. **Which branches touch** — grid-cell Chebyshev search instead of KD-trees.
-3. **Place beam points** — one equidistant pass per layer instead of per branch.
+2. **Split into branches** — NumPy node ids instead of Python ``group_rows`` walk.
+3. **Which branches touch** — grid-cell Chebyshev search instead of KD-trees.
+4. **Place beam points** — one equidistant pass per layer instead of per branch.
 
-The connection indices, cut segments, and beam points match the original
-``f3ast`` path so stream files stay byte-identical on the validated meshes.
+The connection indices, cut segments, branches, and beam points match the
+original ``f3ast`` path so stream files stay byte-identical on the validated
+meshes.
 """
 
 from __future__ import annotations
@@ -22,6 +24,35 @@ from numba import njit
 # positive; STRIDE is wider than the shifted iy range used below.
 _CELL_SHIFT = np.int64(1_000_000_000)
 _CELL_STRIDE = np.int64(2_000_000_000)
+
+
+def split_intersection(intersection):
+    """Split cut segments into connected components (branches).
+
+    Same graph as ``f3ast.branches.split_intersection``: endpoints become
+    nodes, segments become edges, connected components become branches.
+
+    The slow f3ast path builds node ids with ``group_rows`` plus a Python
+    loop over every endpoint. Here node ids come from ``np.unique`` on the
+    same trimesh hashable keys, so matching stays vectorized.
+    """
+    from trimesh.graph import connected_component_labels
+    from trimesh.grouping import hashable_rows
+
+    intersection = np.asarray(intersection)
+    if intersection.size == 0:
+        return []
+
+    points = intersection.reshape(-1, 2)
+    # Same quantization/grouping keys as trimesh.group_rows (tol.merge).
+    keys = hashable_rows(points)
+    _unique_keys, node_ids = np.unique(keys, return_inverse=True)
+    edges = node_ids.reshape(-1, 2)
+    node_count = int(node_ids.max()) + 1
+    conn_labels = connected_component_labels(edges, node_count=node_count)
+    edge_labels = conn_labels[edges[:, 0]]
+    unique_lbls = np.unique(conn_labels)
+    return [intersection[edge_labels == lbl] for lbl in unique_lbls]
 
 
 @njit(cache=True)
@@ -348,6 +379,8 @@ def _snapshot_original_f3ast():
     _ORIGINAL_F3AST = {
         "branches.get_branch_connections": branches.get_branch_connections,
         "structure.get_branch_connections": structure.get_branch_connections,
+        "branches.split_intersection": branches.split_intersection,
+        "structure.split_intersection": structure.split_intersection,
         "slicing.split_eqd": slicing.split_eqd,
         "structure.split_eqd": structure.split_eqd,
         "structure.Structure.get_intersection_lines": structure.Structure.get_intersection_lines,
@@ -357,14 +390,16 @@ def _snapshot_original_f3ast():
 def install_fast_branch_connections():
     """Turn on the slicing speedups inside ``f3ast.Structure.generate_slices``.
 
-    Replaces cut layers, branch connectivity, and equidistant beam-point
-    placement. Call ``uninstall_fast_branch_connections`` to put the
-    originals back.
+    Replaces cut layers, split-into-branches, branch connectivity, and
+    equidistant beam-point placement. Call
+    ``uninstall_fast_branch_connections`` to put the originals back.
     """
     _snapshot_original_f3ast()
     branches, slicing, structure = _f3ast_modules()
     branches.get_branch_connections = get_branch_connections
     structure.get_branch_connections = get_branch_connections
+    branches.split_intersection = split_intersection
+    structure.split_intersection = split_intersection
     slicing.split_eqd = split_eqd
     structure.split_eqd = split_eqd
     structure.Structure.get_intersection_lines = get_intersection_lines
@@ -378,6 +413,8 @@ def uninstall_fast_branch_connections():
     branches, slicing, structure = _f3ast_modules()
     branches.get_branch_connections = _ORIGINAL_F3AST["branches.get_branch_connections"]
     structure.get_branch_connections = _ORIGINAL_F3AST["structure.get_branch_connections"]
+    branches.split_intersection = _ORIGINAL_F3AST["branches.split_intersection"]
+    structure.split_intersection = _ORIGINAL_F3AST["structure.split_intersection"]
     slicing.split_eqd = _ORIGINAL_F3AST["slicing.split_eqd"]
     structure.split_eqd = _ORIGINAL_F3AST["structure.split_eqd"]
     structure.Structure.get_intersection_lines = _ORIGINAL_F3AST["structure.Structure.get_intersection_lines"]
@@ -396,6 +433,8 @@ def fast_branch_connections(enabled: bool = True):
     previous = {
         "branches.get_branch_connections": branches.get_branch_connections,
         "structure.get_branch_connections": structure.get_branch_connections,
+        "branches.split_intersection": branches.split_intersection,
+        "structure.split_intersection": structure.split_intersection,
         "slicing.split_eqd": slicing.split_eqd,
         "structure.split_eqd": structure.split_eqd,
         "structure.Structure.get_intersection_lines": structure.Structure.get_intersection_lines,
@@ -409,6 +448,8 @@ def fast_branch_connections(enabled: bool = True):
     finally:
         branches.get_branch_connections = previous["branches.get_branch_connections"]
         structure.get_branch_connections = previous["structure.get_branch_connections"]
+        branches.split_intersection = previous["branches.split_intersection"]
+        structure.split_intersection = previous["structure.split_intersection"]
         slicing.split_eqd = previous["slicing.split_eqd"]
         structure.split_eqd = previous["structure.split_eqd"]
         structure.Structure.get_intersection_lines = previous["structure.Structure.get_intersection_lines"]
